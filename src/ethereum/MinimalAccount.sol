@@ -14,8 +14,13 @@ contract MinimalAccount is IAccount, Ownable {
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
+    /// @dev Emitted when a function is called from an address that is not the entry point.
     error MinimalAccount__NotFromEntryPoint();
+
+    /// @dev Emitted when a function is called from an address that is not the entry point or the owner.
     error MinimalAccount__NotFromEntryPointOrOwner();
+
+    /// @dev Emitted when a call to an external contract fails.
     error MinimalAccount__CallFailed(bytes);
 
     /*//////////////////////////////////////////////////////////////
@@ -46,6 +51,7 @@ contract MinimalAccount is IAccount, Ownable {
                               FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /// @param entryPoint The address of the entry point contract.
     constructor(address entryPoint) Ownable(msg.sender) {
         i_entryPoint = IEntryPoint(entryPoint);
     }
@@ -56,6 +62,9 @@ contract MinimalAccount is IAccount, Ownable {
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /// @param dest Address of the contract to call.
+    /// @param value Amount of ether to send.
+    /// @param functionData Data of the function to call.
     function execute(address dest, uint256 value, bytes calldata functionData) external requireFromEntryPointOrOwner {
         (bool success, bytes memory result) = dest.call{value: value}(functionData);
         if (!success) {
@@ -63,6 +72,9 @@ contract MinimalAccount is IAccount, Ownable {
         }
     }
 
+    /// @param userOp Struct containing the user operation.
+    /// @param userOpHash Hash of the user operation.
+    /// @param missingAccountFunds Amount of ether missing in the account to pay for the operation.
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
         external
         requireFromEntryPoint
@@ -76,6 +88,8 @@ contract MinimalAccount is IAccount, Ownable {
                            INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /// @param userOp Stuct containing the user operation.
+    /// @param userOpHash Hash of the user operation.
     function _validateSignature(PackedUserOperation calldata userOp, bytes32 userOpHash)
         internal
         view
@@ -89,6 +103,7 @@ contract MinimalAccount is IAccount, Ownable {
         return SIG_VALIDATION_SUCCESS;
     }
 
+    /// @param missingAccountFunds Amount of ether missing in the account to pay for the operation.
     function _payPrefund(uint256 missingAccountFunds) internal {
         if (missingAccountFunds != 0) {
             (bool success,) = payable(msg.sender).call{value: missingAccountFunds, gas: type(uint256).max}("");
@@ -100,6 +115,7 @@ contract MinimalAccount is IAccount, Ownable {
                                 GETTERS
     //////////////////////////////////////////////////////////////*/
 
+    /// @return The address of the entry point contract.
     function getEntryPoint() external view returns (address) {
         return address(i_entryPoint);
     }
