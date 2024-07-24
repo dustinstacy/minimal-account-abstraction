@@ -9,6 +9,9 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS} from "lib/account-abstraction/contracts/core/Helpers.sol";
 import {IEntryPoint} from "lib/account-abstraction/contracts/interfaces/IEntryPoint.sol";
 
+/// @title MinimalAccount
+/// @author Dustin Stacy
+/// @notice This code creates a minimal account abstraction contract that can be used to execute user operations.
 contract MinimalAccount is IAccount, Ownable {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
