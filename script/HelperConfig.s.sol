@@ -55,7 +55,7 @@ contract HelperConfig is Script {
 
     /// @dev This function deploys mocks if the configuration does not exist.
     function getOrCreateAnvilETHConfig() public returns (NetworkConfig memory) {
-        if (localNetworkConfig.account == address(0)) {
+        if (localNetworkConfig.account != address(0)) {
             return localNetworkConfig;
         }
 
