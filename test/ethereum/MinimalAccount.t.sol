@@ -17,54 +17,75 @@ contract MinimalAccountTest is Test {
     MinimalAccount minimalAccount;
     SendPackedUserOp sendPackedUserOp;
     ERC20Mock usdc;
+    IEntryPoint entryPoint;
 
     address user = makeAddr("user");
 
     uint256 constant AMOUNT = 1e18;
+    address dest;
+    uint256 value;
+    bytes functionData;
+    bytes executeCallData;
+    PackedUserOperation packedUserOp;
+    bytes32 userOpHash;
+    uint256 missingAccountFunds = 1e18;
 
     function setUp() public {
         DeployMinimalAccount deployMinimalAccount = new DeployMinimalAccount();
         (helperConfig, minimalAccount) = deployMinimalAccount.deployMinimalAccount();
         sendPackedUserOp = new SendPackedUserOp();
         usdc = new ERC20Mock();
+        entryPoint = IEntryPoint(helperConfig.getConfig().entryPoint);
     }
 
-    function testOwnerCanExecuteCommands() public {
-        assertEq(usdc.balanceOf(address(minimalAccount)), 0);
-        address dest = address(usdc);
-        uint256 value = 0;
-        bytes memory functionData = abi.encodeWithSelector(ERC20Mock.mint.selector, address(minimalAccount), AMOUNT);
+    modifier createFunctionCallData() {
+        dest = address(usdc);
+        value = 0;
+        functionData = abi.encodeWithSelector(ERC20Mock.mint.selector, address(minimalAccount), AMOUNT);
+        _;
+    }
 
+    modifier executeAndGenerateUserOp() {
+        executeCallData = abi.encodeWithSelector(MinimalAccount.execute.selector, dest, value, functionData);
+        packedUserOp = sendPackedUserOp.generateSignedUserOperation(
+            helperConfig.getConfig(), executeCallData, address(minimalAccount)
+        );
+        userOpHash = entryPoint.getUserOpHash(packedUserOp);
+        _;
+    }
+
+    function testOwnerCanExecuteCommands() public createFunctionCallData {
+        assertEq(usdc.balanceOf(address(minimalAccount)), 0);
         vm.prank(minimalAccount.owner());
         minimalAccount.execute(dest, value, functionData);
-
         assertEq(usdc.balanceOf(address(minimalAccount)), AMOUNT);
     }
 
-    function test_RevertsIf_NonOwnerAttemptsToExecuteCommands() public {
-        address dest = address(usdc);
-        uint256 value = 0;
-        bytes memory functionData = abi.encodeWithSelector(ERC20Mock.mint.selector, address(minimalAccount), AMOUNT);
-
+    function test_RevertsIf_NonOwnerAttemptsToExecuteCommands() public createFunctionCallData {
         vm.prank(user);
         vm.expectRevert(MinimalAccount.MinimalAccount__NotFromEntryPointOrOwner.selector);
         minimalAccount.execute(dest, value, functionData);
     }
 
-    function test_RecoverSignedOp() public {
-        assertEq(usdc.balanceOf(address(minimalAccount)), 0);
-        address dest = address(usdc);
-        uint256 value = 0;
-        bytes memory functionData = abi.encodeWithSelector(ERC20Mock.mint.selector, address(minimalAccount), AMOUNT);
-        bytes memory executeCallData =
-            abi.encodeWithSelector(MinimalAccount.execute.selector, dest, value, functionData);
-        PackedUserOperation memory packedUserOp =
-            sendPackedUserOp.generateSignedUserOperation(helperConfig.getConfig(), executeCallData);
-        bytes32 userOpHash = IEntryPoint(helperConfig.getConfig().entryPoint).getUserOpHash(packedUserOp);
-
+    function test_RecoverSignedOp() public createFunctionCallData executeAndGenerateUserOp {
         address actualSigner = ECDSA.recover(userOpHash.toEthSignedMessageHash(), packedUserOp.signature);
         assertEq(actualSigner, minimalAccount.owner());
     }
 
-    function test_ValidationOfUserOps() public {}
+    function test_ValidateUserOp() public createFunctionCallData executeAndGenerateUserOp {
+        vm.prank(address(entryPoint));
+        uint256 validationData = minimalAccount.validateUserOp(packedUserOp, userOpHash, missingAccountFunds);
+        assertEq(validationData, 0);
+    }
+
+    function test_EntryPointCanExecuteCommands() public createFunctionCallData executeAndGenerateUserOp {
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = packedUserOp;
+
+        vm.deal(address(minimalAccount), missingAccountFunds);
+        vm.prank(user);
+        entryPoint.handleOps(ops, payable(user));
+
+        assertEq(usdc.balanceOf(address(minimalAccount)), AMOUNT);
+    }
 }
