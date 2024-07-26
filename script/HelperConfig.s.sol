@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {EntryPoint} from "lib/account-abstraction/contracts/core/EntryPoint.sol";
+import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 
 /// @title HelperConfig
 /// @author Dustin Stacy
@@ -13,10 +14,11 @@ contract HelperConfig is Script {
     struct NetworkConfig {
         address entryPoint;
         address account;
+        address usdc;
     }
 
     uint256 constant ETH_SEPOLIA_CHAIN_ID = 11155111;
-    uint256 constant ZKSYNC_CHAIN_ID = 300;
+    uint256 constant ZKSYNC_SEPOLIA_CHAIN_ID = 300;
     uint256 constant LOCAL_CHAIN_ID = 31337;
 
     address constant BURNER_WALLET = 0x3ef270a74CaAe5Ca4b740a66497085abBf236655;
@@ -46,11 +48,15 @@ contract HelperConfig is Script {
     }
 
     function getETHSepoliaConfig() public pure returns (NetworkConfig memory) {
-        return NetworkConfig({entryPoint: 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789, account: BURNER_WALLET});
+        return NetworkConfig({
+            entryPoint: 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789,
+            account: BURNER_WALLET,
+            usdc: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
+        });
     }
 
     function getZkSyncSepoliaConfig() public pure returns (NetworkConfig memory) {
-        return NetworkConfig({entryPoint: address(0), account: BURNER_WALLET});
+        return NetworkConfig({entryPoint: address(0), account: BURNER_WALLET, usdc: address(0)});
     }
 
     /// @dev This function deploys mocks if the configuration does not exist.
@@ -63,10 +69,12 @@ contract HelperConfig is Script {
         console2.log("Deploying mocks...");
         vm.startBroadcast(ANVIL_DEFAULT_ACCOUNT);
         EntryPoint entryPoint = new EntryPoint();
+        ERC20Mock erc20Mock = new ERC20Mock();
         vm.stopBroadcast();
         console2.log("Mocks deployed!");
 
-        localNetworkConfig = NetworkConfig({entryPoint: address(entryPoint), account: ANVIL_DEFAULT_ACCOUNT});
+        localNetworkConfig =
+            NetworkConfig({entryPoint: address(entryPoint), account: ANVIL_DEFAULT_ACCOUNT, usdc: address(erc20Mock)});
         return localNetworkConfig;
     }
 }
